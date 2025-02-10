@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pendaftaran Pelawat P5</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f9;
+        }
+        form, .section {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            max-width: 600px;
+            margin: 20px auto;
+        }
+        h2, h3 {
+            text-align: center;
+            color: #333;
+        }
+        label {
+            font-weight: bold;
+            margin-top: 10px;
+            display: block;
+        }
+        input, select, button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        table, th, td {
+            border: 1px solid #ccc;
+        }
+        th, td {
+            text-align: left;
+            padding: 10px;
+        }
+        th {
+            background-color: #007bff;
+            color: white;
+        }
+        .hidden {
+            display: none;
+        }
+        .message {
+            text-align: center;
+            font-size: 18px;
+            color: red;
+        }
+    </style>
+    <script>
+        let pendingVisitors = [];
+        let confirmedByOwner = [];
+        let loggedInOwnerPhone = null;
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            return `${day}/${month}/${year}`;
+        }
+
+        function addVisitor(event) {
+            event.preventDefault();
+
+            const noPlat = document.getElementById('no_plat').value.toUpperCase();
+            const noTelefonPelawat = document.getElementById('no_telefon_pelawat').value;
+            const noRumah = document.getElementById('no_rumah').value;
+            const lorong = document.getElementById('lorong').value;
+            const noTelefonPemilik = document.getElementById('no_telefon_pemilik').value;
+            const tarikh = document.getElementById('tarikh').value;
+            const formattedDate = formatDate(tarikh);
+
+            if (!/^[A-Z]{3}[0-9]{1,4}$/.test(noPlat)) {
+                alert("Sila masukkan no plat dalam format CCC1234.");
+                return;
+            }
+
+            if (!/^\d+$/.test(noRumah)) {
+                alert("Sila masukkan nombor rumah dalam format nombor sahaja.");
+                return;
+            }
+
+            if (!/^601\d{8,9}$/.test(noTelefonPelawat) || !/^601\d{8,9}$/.test(noTelefonPemilik)) {
+                alert("Sila masukkan nombor telefon dalam format 601234567890.");
+                return;
+            }
+
+            const visitor = {
+                noPlat,
+                noTelefonPelawat,
+                noRumah,
+                lorong,
+                noTelefonPemilik,
+                tarikh: formattedDate,
+                status: 'Menunggu Pengesahan Pemilik Rumah'
+            };
+
+            pendingVisitors.push(visitor);
+
+            const message = `📢 *Notifikasi Pelawat*\n🚗 No Plat: ${noPlat}\n📞 No Telefon Pelawat: ${noTelefonPelawat}\n🏡 Rumah: ${noRumah}, ${lorong}\n📅 Tarikh: ${formattedDate}\n\n✅ Jika pelawat ini dibenarkan, sila sahkan melalui sistem.`;
+            const whatsappURL = `https://api.whatsapp.com/send?phone=${noTelefonPemilik}&text=${encodeURIComponent(message)}`;
+            window.open(whatsappURL, '_blank');
+
+            document.getElementById('visitorForm').reset();
+            alert('Notifikasi telah dihantar kepada pemilik rumah.');
+        }
+
+        function ownerLogin(event) {
+            event.preventDefault();
+
+            const inputPhone = document.getElementById('ownerPhone').value;
+            const hasVisitors = pendingVisitors.some(visitor => visitor.noTelefonPemilik === inputPhone);
+
+            if (hasVisitors) {
+                loggedInOwnerPhone = inputPhone;
+                document.getElementById('ownerSection').classList.remove('hidden');
+                alert('Log masuk berjaya. Senarai pelawat anda kini dipaparkan.');
+                updatePendingList();
+            } else {
+                alert('Tiada pelawat untuk nombor telefon ini.');
+            }
+        }
+
+        function updatePendingList() {
+            const pendingTable = document.getElementById('pendingTableBody');
+            pendingTable.innerHTML = '';
+
+            const ownerVisitors = pendingVisitors.filter(visitor => visitor.noTelefonPemilik === loggedInOwnerPhone);
+
+            if (ownerVisitors.length === 0) {
+                pendingTable.innerHTML = '<tr><td colspan="8" class="message">Tiada Pelawat</td></tr>';
+                return;
+            }
+
+            ownerVisitors.forEach((visitor, index) => {
+                const row = `<tr>
+                    <td>${visitor.noPlat}</td>
+                    <td>${visitor.noTelefonPelawat}</td>
+                    <td>${visitor.noRumah}</td>
+                    <td>${visitor.lorong}</td>
+                    <td>${visitor.tarikh}</td>
+                    <td>${visitor.status}</td>
+                    <td>
+                        <input type="text" id="ownerName_${index}" placeholder="Nama Pengesah" required>
+                    </td>
+                    <td>
+                        <button onclick="confirmByOwner(${index})">Sahkan</button>
+                    </td>
+                </tr>`;
+                pendingTable.innerHTML += row;
+            });
+        }
+
+        function confirmByOwner(index) {
+            const ownerNameInput = document.getElementById(`ownerName_${index}`);
+            if (!ownerNameInput || !ownerNameInput.value.trim()) {
+                alert("Sila masukkan nama individu yang memberi pengesahan.");
+                return;
+            }
+
+            const visitor = pendingVisitors[index];
+            visitor.status = `Telah Disahkan Pemilik Rumah (${ownerNameInput.value.trim()})`;
+            confirmedByOwner.push(visitor);
+            pendingVisitors.splice(index, 1);
+            alert(`Pelawat dengan No Plat ${visitor.noPlat} telah disahkan oleh ${ownerNameInput.value.trim()}.`);
+            updatePendingList();
+            updateConfirmedList();
+        }
+
+        function adminLogin(event) {
+            event.preventDefault();
+            const inputPassword = document.getElementById('adminPassword').value;
+
+            if (inputPassword === 'abc123') {
+                document.getElementById('adminSection').classList.remove('hidden');
+                alert('Log masuk admin berjaya. Senarai pelawat kini dipaparkan.');
+                updateConfirmedList();
+            } else {
+                alert('Kata laluan admin salah.');
+            }
+        }
+
+        function updateConfirmedList() {
+            const confirmedTable = document.getElementById('confirmedTableBody');
+            confirmedTable.innerHTML = '';
+
+            confirmedByOwner.forEach((visitor, index) => {
+                const row = `<tr>
+                    <td>${visitor.noPlat}</td>
+                    <td>${visitor.noTelefonPelawat}</td>
+                    <td>${visitor.noRumah}</td>
+                    <td>${visitor.lorong}</td>
+                    <td>${visitor.tarikh}</td>
+                    <td>${visitor.status}</td>
+                    <td><button onclick="finalConfirm(${index})">Sahkan</button></td>
+                </tr>`;
+                confirmedTable.innerHTML += row;
+            });
+        }
+
+        function finalConfirm(index) {
+            const visitor = confirmedByOwner[index];
+            visitor.status = 'Disahkan';
+            alert('Pengesahan akhir berjaya!');
+
+            const message = `✅ *Lawatan Anda Telah Disahkan!*\n🏡 Rumah: ${visitor.noRumah}, ${visitor.lorong}\n📅 Tarikh: ${visitor.tarikh}`;
+            const whatsappURL = `https://api.whatsapp.com/send?phone=${visitor.noTelefonPelawat}&text=${encodeURIComponent(message)}`;
+            window.open(whatsappURL, '_blank');
+
+            confirmedByOwner.splice(index, 1);
+            updateConfirmedList();
+        }
+    </script>
+</head>
+<body>
+    <h2>Pendaftaran Pelawat P5</h2>
+    <form id="visitorForm" onsubmit="addVisitor(event)">
+        <label for="no_plat">No Plat Kenderaan (Contoh: CCC1234):</label>
+        <input type="text" id="no_plat" placeholder="CCC1234" required>
+
+        <label for="no_telefon_pelawat">No Telefon Pelawat (Contoh: 601234567890):</label>
+        <input type="tel" id="no_telefon_pelawat" placeholder="601234567890" required>
+
+        <label for="no_rumah">No Rumah (Nombor sahaja):</label>
+        <input type="text" id="no_rumah" placeholder="Contoh: 123" required>
+
+        <label for="lorong">Lorong:</label>
+        <select id="lorong" required>
+            <option value="" disabled selected>Sila pilih lorong</option>
+            <option value="KS 5">KS 5</option>
+            <option value="KS 5/1">KS 5/1</option>
+            <option value="KS 5/2">KS 5/2</option>
+            <option value="KS 5/3">KS 5/3</option>
+        </select>
+
+        <label for="no_telefon_pemilik">No Telefon Pemilik Rumah (Contoh: 601234567890):</label>
+        <input type="tel" id="no_telefon_pemilik" placeholder="601234567890" required>
+
+        <label for="tarikh">Tarikh Lawatan:</label>
+        <input type="date" id="tarikh" required>
+
+        <button type="submit">Hantar</button>
+    </form>
+
+    <div class="section">
+        <h3>Log Masuk Pemilik Rumah</h3>
+        <form onsubmit="ownerLogin(event)">
+            <label for="ownerPhone">Masukkan Nombor Telefon Anda (Contoh: 601234567890):</label>
+            <input type="tel" id="ownerPhone" placeholder="601234567890" required>
+            <button type="submit">Log Masuk</button>
+        </form>
+    </div>
+
+    <div id="ownerSection" class="section hidden">
+        <h3>Senarai Pelawat Menunggu Pengesahan Pemilik Rumah</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>No Plat</th>
+                    <th>No Telefon</th>
+                    <th>No Rumah</th>
+                    <th>Lorong</th>
+                    <th>Tarikh</th>
+                    <th>Status</th>
+                    <th>Nama Pengesah</th>
+                    <th>Tindakan</th>
+                </tr>
+            </thead>
+            <tbody id="pendingTableBody"></tbody>
+        </table>
+    </div>
+
+    <div class="section">
+        <h3>Log Masuk Admin</h3>
+        <form onsubmit="adminLogin(event)">
+            <label for="adminPassword">Masukkan Kata Laluan Admin:</label>
+            <input type="password" id="adminPassword" placeholder="Kata Laluan" required>
+            <button type="submit">Log Masuk</button>
+        </form>
+    </div>
+
+    <div id="adminSection" class="section hidden">
+        <h3>Senarai Pelawat Menunggu Pengesahan Admin</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>No Plat</th>
+                    <th>No Telefon</th>
+                    <th>No Rumah</th>
+                    <th>Lorong</th>
+                    <th>Tarikh</th>
+                    <th>Status</th>
+                    <th>Tindakan</th>
+                </tr>
+            </thead>
+            <tbody id="confirmedTableBody"></tbody>
+        </table>
+    </div>
+</body>
+</html>
